@@ -5,15 +5,16 @@
   <title>PDF Encrypt</title>
 </head>
 <body>
-  <h2>Upload PDF to Encrypt1</h2>
+  <h2>Upload PDF to Encrypt</h2>
 
   <input type="file" id="uploadFile" accept="application/pdf" />
   <button id="uploadBtn">Encrypt PDF</button>
 
+  <h3>Result:</h3>
   <pre id="output"></pre>
 
   <script>
-    const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev"
+    const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-tools"
     const MAX_SIZE_MB = 5;
 
     document.getElementById("uploadBtn").addEventListener("click", async () => {
@@ -43,6 +44,8 @@
         const base64File = reader.result.split(",")[1]; // strip "data:application/pdf;base64,"
 
         try {
+          console.log("Sending request to API:", apiUrl);
+
           const response = await fetch(apiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -53,10 +56,12 @@
             })
           });
 
+          console.log("Response status:", response.status);
+
           const result = await response.json();
+          console.log("Response JSON:", result);
 
           if (!response.ok || result.error) {
-            console.error("Error:", result);
             output.textContent = "❌ Error: " + (result.error || `HTTP ${response.status}`);
             return;
           }
@@ -65,7 +70,7 @@
           output.textContent = `✅ Success: ${result.message}\nFile saved to: s3://${result.bucket}/${result.key}`;
 
         } catch (err) {
-          console.error(err);
+          console.error("Request failed:", err);
           output.textContent = "❌ Failed to process PDF. See console for details.";
         }
       };
