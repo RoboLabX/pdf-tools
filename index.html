@@ -9,7 +9,7 @@
 <button id="downloadBtn">Download PDF</button>
 
 <script>
-const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-echo"; // replace with your API URL
+const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-echo"
 
 document.getElementById("downloadBtn").addEventListener("click", async () => {
     try {
@@ -18,11 +18,14 @@ document.getElementById("downloadBtn").addEventListener("click", async () => {
         });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-        const data = await response.json(); // Lambda returns JSON with base64 body
-        const pdfBase64 = data.body;
+        // Read response as text (base64), not JSON
+        const pdfBase64 = await response.text();
+
+        // Decode base64 to bytes
         const pdfBytes = Uint8Array.from(atob(pdfBase64), c => c.charCodeAt(0));
         const blob = new Blob([pdfBytes], { type: "application/pdf" });
 
+        // Trigger download
         const link = document.createElement("a");
         link.href = window.URL.createObjectURL(blob);
         link.download = "test.pdf"; // filename for downloaded PDF
@@ -30,7 +33,7 @@ document.getElementById("downloadBtn").addEventListener("click", async () => {
 
     } catch (err) {
         console.error(err);
-        alert("Failed to download PDF.");
+        alert("Failed to download PDF. See console for details.");
     }
 });
 </script>
