@@ -2,39 +2,81 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Download PDF</title>
+<title>PDF Encrypt/Decrypt</title>
 </head>
 <body>
-<h2>Download Test PDF</h2>
-<button id="downloadBtn">Download PDF</button>
+<h2>Upload PDF to Encrypt/Decrypt</h2>
+
+<input type="file" id="uploadFile" accept="application/pdf" />
+<select id="actionSelect">
+    <option value="encrypt">Encrypt (apply password)</option>
+    <option value="decrypt">Decrypt (remove password)</option>
+</select>
+<button id="uploadBtn">Process PDF</button>
 
 <script>
-const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-echo"
+const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-tools
+const MAX_SIZE_MB = 5;
 
-document.getElementById("downloadBtn").addEventListener("click", async () => {
-    try {
-        const response = await fetch(apiUrl, {
-            method: "POST"
-        });
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-        // Read response as text (base64), not JSON
-        const pdfBase64 = await response.text();
-
-        // Decode base64 to bytes
-        const pdfBytes = Uint8Array.from(atob(pdfBase64), c => c.charCodeAt(0));
-        const blob = new Blob([pdfBytes], { type: "application/pdf" });
-
-        // Trigger download
-        const link = document.createElement("a");
-        link.href = window.URL.createObjectURL(blob);
-        link.download = "test.pdf"; // filename for downloaded PDF
-        link.click();
-
-    } catch (err) {
-        console.error(err);
-        alert("Failed to download PDF. See console for details.");
+document.getElementById("uploadBtn").addEventListener("click", async () => {
+    const fileInput = document.getElementById("uploadFile");
+    if (!fileInput.files.length) {
+        alert("Please select a file.");
+        return;
     }
+
+    const file = fileInput.files[0];
+
+    // Check file type
+    if (file.type !== "application/pdf") {
+        alert("Please select a PDF file.");
+        return;
+    }
+
+    // Check file size
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+        alert(`File too large. Max allowed size is ${MAX_SIZE_MB} MB.`);
+        return;
+    }
+
+    const action = document.getElementById("actionSelect").value;
+
+    // Read file as base64
+    const reader = new FileReader();
+    reader.onload = async function() {
+        const base64File = reader.result.split(",")[1]; // strip data:application/pdf;base64,
+
+        try {
+            const response = await fetch(apiUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: action,
+                    filename: file.name,
+                    filedata: base64File
+                })
+            });
+
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const result = await response.json();
+
+            // Expect Lambda returns base64 PDF in result.body
+            const pdfBase64 = result.body;
+            const pdfBytes = Uint8Array.from(atob(pdfBase64), c => c.charCodeAt(0));
+            const blob = new Blob([pdfBytes], { type: "application/pdf" });
+
+            // Trigger download
+            const link = document.createElement("a");
+            link.href = window.URL.createObjectURL(blob);
+            link.download = file.name; // save with original name
+            link.click();
+
+        } catch (err) {
+            console.error(err);
+            alert("Failed to process PDF. See console for details.");
+        }
+    };
+    reader.readAsDataURL(file);
 });
 </script>
 </body>
