@@ -1,83 +1,76 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>PDF Encrypt/Decrypt</title>
+  <meta charset="UTF-8">
+  <title>PDF Encrypt</title>
 </head>
 <body>
-<h2>Upload PDF to Encrypt/Decrypt</h2>
+  <h2>Upload PDF to Encrypt</h2>
 
-<input type="file" id="uploadFile" accept="application/pdf" />
-<select id="actionSelect">
-    <option value="encrypt">Encrypt (apply password)</option>
-    <option value="decrypt">Decrypt (remove password)</option>
-</select>
-<button id="uploadBtn">Process PDF</button>
+  <input type="file" id="uploadFile" accept="application/pdf" />
+  <button id="uploadBtn">Encrypt PDF</button>
 
-<script>
-const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-tools
-const MAX_SIZE_MB = 5;
+  <pre id="output"></pre>
 
-document.getElementById("uploadBtn").addEventListener("click", async () => {
-    const fileInput = document.getElementById("uploadFile");
-    if (!fileInput.files.length) {
+  <script>
+    const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev"
+    const MAX_SIZE_MB = 5;
+
+    document.getElementById("uploadBtn").addEventListener("click", async () => {
+      const fileInput = document.getElementById("uploadFile");
+      const output = document.getElementById("output");
+      output.textContent = "";
+
+      if (!fileInput.files.length) {
         alert("Please select a file.");
         return;
-    }
+      }
 
-    const file = fileInput.files[0];
+      const file = fileInput.files[0];
 
-    // Check file type
-    if (file.type !== "application/pdf") {
+      // Validate PDF
+      if (file.type !== "application/pdf") {
         alert("Please select a PDF file.");
         return;
-    }
-
-    // Check file size
-    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      }
+      if (file.size > MAX_SIZE_MB * 1024 * 1024) {
         alert(`File too large. Max allowed size is ${MAX_SIZE_MB} MB.`);
         return;
-    }
+      }
 
-    const action = document.getElementById("actionSelect").value;
-
-    // Read file as base64
-    const reader = new FileReader();
-    reader.onload = async function() {
-        const base64File = reader.result.split(",")[1]; // strip data:application/pdf;base64,
+      const reader = new FileReader();
+      reader.onload = async function () {
+        const base64File = reader.result.split(",")[1]; // strip "data:application/pdf;base64,"
 
         try {
-            const response = await fetch(apiUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    action: action,
-                    filename: file.name,
-                    filedata: base64File
-                })
-            });
+          const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "encrypt",
+              filename: file.name,
+              filedata: base64File
+            })
+          });
 
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const result = await response.json();
+          const result = await response.json();
 
-            // Expect Lambda returns base64 PDF in result.body
-            const pdfBase64 = result.body;
-            const pdfBytes = Uint8Array.from(atob(pdfBase64), c => c.charCodeAt(0));
-            const blob = new Blob([pdfBytes], { type: "application/pdf" });
+          if (!response.ok || result.error) {
+            console.error("Error:", result);
+            output.textContent = "❌ Error: " + (result.error || `HTTP ${response.status}`);
+            return;
+          }
 
-            // Trigger download
-            const link = document.createElement("a");
-            link.href = window.URL.createObjectURL(blob);
-            link.download = file.name; // save with original name
-            link.click();
+          // Show success message
+          output.textContent = `✅ Success: ${result.message}\nFile saved to: s3://${result.bucket}/${result.key}`;
 
         } catch (err) {
-            console.error(err);
-            alert("Failed to process PDF. See console for details.");
+          console.error(err);
+          output.textContent = "❌ Failed to process PDF. See console for details.";
         }
-    };
-    reader.readAsDataURL(file);
-});
-</script>
+      };
+      reader.readAsDataURL(file);
+    });
+  </script>
 </body>
 </html>
