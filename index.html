@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Download PDF</title>
+</head>
+<body>
+<h2>Download Test PDF</h2>
+<button id="downloadBtn">Download PDF</button>
+
+<script>
+const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-echo"; // replace with your API URL
+
+document.getElementById("downloadBtn").addEventListener("click", async () => {
+    try {
+        const response = await fetch(apiUrl, {
+            method: "POST"
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+        const data = await response.json(); // Lambda returns JSON with base64 body
+        const pdfBase64 = data.body;
+        const pdfBytes = Uint8Array.from(atob(pdfBase64), c => c.charCodeAt(0));
+        const blob = new Blob([pdfBytes], { type: "application/pdf" });
+
+        const link = document.createElement("a");
+        link.href = window.URL.createObjectURL(blob);
+        link.download = "test.pdf"; // filename for downloaded PDF
+        link.click();
+
+    } catch (err) {
+        console.error(err);
+        alert("Failed to download PDF.");
+    }
+});
+</script>
+</body>
+</html>
