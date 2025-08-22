@@ -12,7 +12,7 @@
   </style>
 </head>
 <body>
-  <h1>PDF Tools</h1>
+  <h1>PDF Encrypt/Decrypt Tool</h1>
 
   <div class="container">
     <label for="fileInput">Choose a PDF file:</label>
@@ -32,7 +32,7 @@
   </div>
 
   <script>
-    const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-echo";
+    const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-echo"
 
     document.getElementById("processBtn").addEventListener("click", async () => {
       const fileInput = document.getElementById("fileInput");
@@ -46,6 +46,13 @@
       }
 
       const file = fileInput.files[0];
+      const fileNameLower = file.name.toLowerCase();
+
+      // Client-side file validation
+      if (file.type !== "application/pdf" && !fileNameLower.endsWith(".pdf")) {
+        alert("Please select a valid PDF file.");
+        return;
+      }
 
       // Validate password
       const password = passwordInput.value.trim();
@@ -73,7 +80,8 @@
           });
 
           if (!response.ok) {
-            throw new Error("Server error: " + response.status);
+            const errText = await response.text();
+            throw new Error(errText || "Server error: " + response.status);
           }
 
           const processedB64 = await response.text();
@@ -98,7 +106,7 @@
           statusEl.textContent = `PDF ${action}ed and downloaded successfully!`;
         } catch (err) {
           console.error("Error:", err);
-          statusEl.textContent = "Failed to process PDF. See console for details.";
+          statusEl.textContent = "Failed to process PDF: " + err.message;
         }
       };
       reader.readAsDataURL(file);
