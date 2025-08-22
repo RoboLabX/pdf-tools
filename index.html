@@ -2,76 +2,87 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PDF Encrypt</title>
+  <title>PDF Tools</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    h1 { color: #333; }
+    .container { margin-top: 20px; }
+    label, button { display: block; margin: 10px 0; }
+  </style>
 </head>
 <body>
-  <h2>Upload PDF to Encrypt</h2>
+  <h1>PDF Encryption Tool</h1>
 
-  <input type="file" id="uploadFile" accept="application/pdf" />
-  <button id="uploadBtn">Encrypt PDF</button>
+  <div class="container">
+    <label for="fileInput">Choose a PDF file:</label>
+    <input type="file" id="fileInput" accept="application/pdf" />
 
-  <h3>Result:</h3>
-  <pre id="output"></pre>
+    <label for="actionSelect">Action:</label>
+    <select id="actionSelect">
+      <option value="encrypt">Encrypt</option>
+    </select>
+
+    <button id="processBtn">Process PDF</button>
+    <p id="status"></p>
+  </div>
 
   <script>
-    const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-echo"
-    const MAX_SIZE_MB = 5;
+    const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-echo";
 
-    document.getElementById("uploadBtn").addEventListener("click", async () => {
-      const fileInput = document.getElementById("uploadFile");
-      const output = document.getElementById("output");
-      output.textContent = "";
+    document.getElementById("processBtn").addEventListener("click", async () => {
+      const fileInput = document.getElementById("fileInput");
+      const action = document.getElementById("actionSelect").value;
+      const statusEl = document.getElementById("status");
 
-      if (!fileInput.files.length) {
-        alert("Please select a file.");
+      if (fileInput.files.length === 0) {
+        alert("Please select a PDF file.");
         return;
       }
 
       const file = fileInput.files[0];
-
-      // Validate PDF
-      if (file.type !== "application/pdf") {
-        alert("Please select a PDF file.");
-        return;
-      }
-      if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-        alert(`File too large. Max allowed size is ${MAX_SIZE_MB} MB.`);
-        return;
-      }
+      statusEl.textContent = "Processing...";
 
       const reader = new FileReader();
-      reader.onload = async function () {
-        const base64File = reader.result.split(",")[1]; // strip "data:application/pdf;base64,"
-
+      reader.onload = async function() {
+        const fileData = reader.result.split(",")[1]; // base64
         try {
-          console.log("Sending request to API:", apiUrl);
-
           const response = await fetch(apiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              action: "encrypt",
+              action: action,
               filename: file.name,
-              filedata: base64File
+              filedata: fileData
             })
           });
 
-          console.log("Response status:", response.status);
-
-          const result = await response.json();
-          console.log("Response JSON:", result);
-
-          if (!response.ok || result.error) {
-            output.textContent = "❌ Error: " + (result.error || `HTTP ${response.status}`);
-            return;
+          if (!response.ok) {
+            throw new Error("Server error: " + response.status);
           }
 
-          // Show success message
-          output.textContent = `✅ Success: ${result.message}\nFile saved to: s3://${result.bucket}/${result.key}`;
+          const encryptedB64 = await response.text();
+          const byteCharacters = atob(encryptedB64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: "application/pdf" });
 
+          // Trigger download
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "encrypted_" + file.name;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+
+          statusEl.textContent = "PDF processed and downloaded successfully!";
         } catch (err) {
-          console.error("Request failed:", err);
-          output.textContent = "❌ Failed to process PDF. See console for details.";
+          console.error("Error:", err);
+          statusEl.textContent = "Failed to process PDF. See console for details.";
         }
       };
       reader.readAsDataURL(file);
