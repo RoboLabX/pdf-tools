@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PDF Tools</title>
+  <title>PDF Encryption Tool</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 40px; }
     h1 { color: #333; }
     .container { margin-top: 20px; }
     label, button { display: block; margin: 10px 0; }
+    input { padding: 5px; width: 300px; }
   </style>
 </head>
 <body>
@@ -16,6 +17,9 @@
   <div class="container">
     <label for="fileInput">Choose a PDF file:</label>
     <input type="file" id="fileInput" accept="application/pdf" />
+
+    <label for="passwordInput">Enter password (4–50 characters, letters/numbers/symbols):</label>
+    <input type="password" id="passwordInput" maxlength="50" />
 
     <label for="actionSelect">Action:</label>
     <select id="actionSelect">
@@ -31,6 +35,7 @@
 
     document.getElementById("processBtn").addEventListener("click", async () => {
       const fileInput = document.getElementById("fileInput");
+      const passwordInput = document.getElementById("passwordInput");
       const action = document.getElementById("actionSelect").value;
       const statusEl = document.getElementById("status");
 
@@ -40,6 +45,15 @@
       }
 
       const file = fileInput.files[0];
+
+      // Validate password
+      const password = passwordInput.value.trim();
+      const passwordRegex = /^[\w!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]+$/;
+      if (password.length < 4 || password.length > 50 || !passwordRegex.test(password)) {
+        alert("Invalid password. Must be 4–50 characters, letters, numbers, or symbols.");
+        return;
+      }
+
       statusEl.textContent = "Processing...";
 
       const reader = new FileReader();
@@ -52,7 +66,8 @@
             body: JSON.stringify({
               action: action,
               filename: file.name,
-              filedata: fileData
+              filedata: fileData,
+              password: password
             })
           });
 
