@@ -2,18 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PDF Encrypt/Decrypt Tool with Logs</title>
+  <title>PDF Encrypt/Decrypt Tool</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 40px; }
     h1 { color: #333; }
     .container { margin-top: 20px; }
     label, button { display: block; margin: 10px 0; }
     input { padding: 5px; width: 300px; }
-    #logBox { border: 1px solid #ccc; padding: 10px; height: 200px; overflow-y: auto; margin-top: 10px; white-space: pre-line; background: #f9f9f9;}
   </style>
 </head>
 <body>
-  <h1>PDF Encrypt/Decrypt Tool with Logs</h1>
+  <h1>PDF Encrypt/Decrypt Tool</h1>
 
   <div class="container">
     <label for="fileInput">Choose a PDF file:</label>
@@ -30,26 +29,16 @@
 
     <button id="processBtn">Process PDF</button>
     <p id="status"></p>
-    <div id="logBox"></div>
   </div>
 
   <script>
     const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-echo"
-    const logBox = document.getElementById("logBox");
-    const statusEl = document.getElementById("status");
-
-    function appendLog(msg) {
-      logBox.textContent += msg + "\n";
-      logBox.scrollTop = logBox.scrollHeight;
-    }
 
     document.getElementById("processBtn").addEventListener("click", async () => {
-      logBox.textContent = "";
-      statusEl.textContent = "";
-
       const fileInput = document.getElementById("fileInput");
       const passwordInput = document.getElementById("passwordInput");
       const action = document.getElementById("actionSelect").value;
+      const statusEl = document.getElementById("status");
 
       if (fileInput.files.length === 0) {
         alert("Please select a PDF file.");
@@ -59,11 +48,13 @@
       const file = fileInput.files[0];
       const fileNameLower = file.name.toLowerCase();
 
+      // Client-side file validation
       if (file.type !== "application/pdf" && !fileNameLower.endsWith(".pdf")) {
         alert("Please select a valid PDF file.");
         return;
       }
 
+      // Validate password
       const password = passwordInput.value.trim();
       const passwordRegex = /^[\w!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]+$/;
       if (password.length < 4 || password.length > 50 || !passwordRegex.test(password)) {
@@ -72,12 +63,10 @@
       }
 
       statusEl.textContent = "Processing...";
-      appendLog("Reading file...");
 
       const reader = new FileReader();
       reader.onload = async function() {
-        const fileData = reader.result.split(",")[1];
-
+        const fileData = reader.result.split(",")[1]; // base64
         try {
           const response = await fetch(apiUrl, {
             method: "POST",
@@ -92,17 +81,11 @@
 
           if (!response.ok) {
             const errText = await response.text();
-            appendLog("Error from server: " + errText);
             throw new Error(errText || "Server error: " + response.status);
           }
 
-          const result = await response.json();
-
-          if (result.logs && Array.isArray(result.logs)) {
-            result.logs.forEach(l => appendLog(l));
-          }
-
-          const byteCharacters = atob(result.result);
+          const processedB64 = await response.text();
+          const byteCharacters = atob(processedB64);
           const byteNumbers = new Array(byteCharacters.length);
           for (let i = 0; i < byteCharacters.length; i++) {
             byteNumbers[i] = byteCharacters.charCodeAt(i);
@@ -110,6 +93,7 @@
           const byteArray = new Uint8Array(byteNumbers);
           const blob = new Blob([byteArray], { type: "application/pdf" });
 
+          // Trigger download
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
@@ -120,12 +104,9 @@
           window.URL.revokeObjectURL(url);
 
           statusEl.textContent = `PDF ${action}ed and downloaded successfully!`;
-          appendLog("Download triggered.");
-
         } catch (err) {
           console.error("Error:", err);
-          statusEl.textContent = "Failed to process PDF: see log below.";
-          appendLog("Exception: " + err.message);
+          statusEl.textContent = "Failed to process PDF: " + err.message;
         }
       };
       reader.readAsDataURL(file);
