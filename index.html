@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PDF Encryption Tool</title>
+  <title>PDF Encrypt/Decrypt Tool</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 40px; }
     h1 { color: #333; }
@@ -12,7 +12,7 @@
   </style>
 </head>
 <body>
-  <h1>PDF Encryption Tool</h1>
+  <h1>PDF Tools</h1>
 
   <div class="container">
     <label for="fileInput">Choose a PDF file:</label>
@@ -24,6 +24,7 @@
     <label for="actionSelect">Action:</label>
     <select id="actionSelect">
       <option value="encrypt">Encrypt</option>
+      <option value="decrypt">Decrypt</option>
     </select>
 
     <button id="processBtn">Process PDF</button>
@@ -31,7 +32,7 @@
   </div>
 
   <script>
-    const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-echo";
+    const apiUrl = "https://XXXXXX.execute-api.us-west-2.amazonaws.com/dev/pdf-echo"; // replace with your API endpoint
 
     document.getElementById("processBtn").addEventListener("click", async () => {
       const fileInput = document.getElementById("fileInput");
@@ -75,8 +76,8 @@
             throw new Error("Server error: " + response.status);
           }
 
-          const encryptedB64 = await response.text();
-          const byteCharacters = atob(encryptedB64);
+          const processedB64 = await response.text();
+          const byteCharacters = atob(processedB64);
           const byteNumbers = new Array(byteCharacters.length);
           for (let i = 0; i < byteCharacters.length; i++) {
             byteNumbers[i] = byteCharacters.charCodeAt(i);
@@ -88,13 +89,13 @@
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = "encrypted_" + file.name;
+          a.download = `${action}_` + file.name;
           document.body.appendChild(a);
           a.click();
           a.remove();
           window.URL.revokeObjectURL(url);
 
-          statusEl.textContent = "PDF processed and downloaded successfully!";
+          statusEl.textContent = `PDF ${action}ed and downloaded successfully!`;
         } catch (err) {
           console.error("Error:", err);
           statusEl.textContent = "Failed to process PDF. See console for details.";
