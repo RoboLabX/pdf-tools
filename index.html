@@ -12,7 +12,7 @@
   </style>
 </head>
 <body>
-  <h1>PDF Encrypt/Decrypt Tool</h1>
+  <h1>PDF Tool</h1>
 
   <div class="container">
     <label for="fileInput">Choose a PDF file:</label>
@@ -46,13 +46,6 @@
       }
 
       const file = fileInput.files[0];
-      const fileNameLower = file.name.toLowerCase();
-
-      // Client-side file validation
-      if (file.type !== "application/pdf" && !fileNameLower.endsWith(".pdf")) {
-        alert("Please select a valid PDF file.");
-        return;
-      }
 
       // Validate password
       const password = passwordInput.value.trim();
@@ -80,8 +73,7 @@
           });
 
           if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(errText || "Server error: " + response.status);
+            throw new Error("Server error: " + response.status);
           }
 
           const processedB64 = await response.text();
@@ -106,7 +98,7 @@
           statusEl.textContent = `PDF ${action}ed and downloaded successfully!`;
         } catch (err) {
           console.error("Error:", err);
-          statusEl.textContent = "Failed to process PDF: " + err.message;
+          statusEl.textContent = "Failed to process PDF. See console for details.";
         }
       };
       reader.readAsDataURL(file);
