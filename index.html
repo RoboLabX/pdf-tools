@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PDF Encrypt/Decrypt Tool</title>
+  <title>PDF Tool</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 40px; }
     h1 { color: #333; }
@@ -32,7 +32,7 @@
   </div>
 
   <script>
-    const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-echo"
+    const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-echo";
 
     document.getElementById("processBtn").addEventListener("click", async () => {
       const fileInput = document.getElementById("fileInput");
@@ -76,7 +76,11 @@
             throw new Error("Server error: " + response.status);
           }
 
-          const processedB64 = await response.text();
+          // Parse JSON from Lambda
+          const result = await response.json();
+          const processedB64 = result.result;
+
+          // Convert base64 to binary
           const byteCharacters = atob(processedB64);
           const byteNumbers = new Array(byteCharacters.length);
           for (let i = 0; i < byteCharacters.length; i++) {
