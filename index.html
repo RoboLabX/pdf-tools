@@ -9,10 +9,11 @@
     .container { margin-top: 20px; }
     label, button { display: block; margin: 10px 0; }
     input { padding: 5px; width: 300px; }
+    button[disabled] { opacity: 0.6; cursor: not-allowed; }
   </style>
 </head>
 <body>
-  <h1>PDF Tools</h1>
+  <h1>PDF Tool</h1>
 
   <div class="container">
     <label for="fileInput">Choose a PDF file:</label>
@@ -31,25 +32,57 @@
     <p id="status"></p>
   </div>
 
-  <!-- Add pdf-lib -->
+  <!-- pdf-lib for encrypted check -->
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
 
   <script>
     const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-echo";
 
-    // Utility: Check if PDF is encrypted
+    // Robust PDF check:
+    // 1) MIME or extension
+    // 2) scan first 1KB for "%PDF-"
+    async function isProbablyPdf(file) {
+      const byName = file.name?.toLowerCase().endsWith(".pdf");
+      const byMime = file.type === "application/pdf";
+
+      // Read first 1024 bytes and search for "%PDF-"
+      const headBuf = await file.slice(0, 1024).arrayBuffer();
+      const head = new Uint8Array(headBuf);
+      const sig = [0x25, 0x50, 0x44, 0x46, 0x2D]; // %PDF-
+      const hasSignature = () => {
+        for (let i = 0; i <= head.length - sig.length; i++) {
+          let match = true;
+          for (let j = 0; j < sig.length; j++) {
+            if (head[i + j] !== sig[j]) { match = false; break; }
+          }
+          if (match) return true;
+        }
+        return false;
+      };
+
+      // Accept if (mime OR name) AND header signature present
+      return (byMime || byName) && hasSignature();
+    }
+
     async function isPdfEncrypted(file) {
       try {
-        const arrayBuffer = await file.arrayBuffer();
-        await PDFLib.PDFDocument.load(arrayBuffer); 
-        return false; // opened successfully
+        const buf = await file.arrayBuffer();
+        await PDFLib.PDFDocument.load(buf);
+        return false; // opened = not encrypted
       } catch (err) {
-        console.warn("PDF check error:", err.message);
-        if (err.message.includes("Password") || err.message.includes("encrypted")) {
-          return true;
-        }
-        return false; // treat other errors as not-encrypted
+        const msg = (err && err.message || "").toLowerCase();
+        // pdf-lib throws messages containing "password" or "encrypted" on protected PDFs
+        if (msg.includes("password") || msg.includes("encrypt")) return true;
+        // For other parse errors, treat as not encrypted (we already validated it's a PDF)
+        return false;
       }
+    }
+
+    function setBusy(busy) {
+      const btn = document.getElementById("processBtn");
+      const statusEl = document.getElementById("status");
+      btn.disabled = busy;
+      statusEl.textContent = busy ? "Processing..." : "";
     }
 
     document.getElementById("processBtn").addEventListener("click", async () => {
@@ -65,7 +98,13 @@
 
       const file = fileInput.files[0];
 
-      // Validate password
+      // Strong PDF validation
+      if (!(await isProbablyPdf(file))) {
+        alert("Invalid file. Please upload a real PDF (with a valid PDF header).");
+        return;
+      }
+
+      // Password validation
       const password = passwordInput.value.trim();
       const passwordRegex = /^[\w!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]+$/;
       if (password.length < 4 || password.length > 50 || !passwordRegex.test(password)) {
@@ -73,22 +112,22 @@
         return;
       }
 
-      // --- NEW CHECK: Prevent re-encrypting already encrypted file ---
+      // Encrypted vs not-encrypted check (after confirming it's a PDF)
       const encrypted = await isPdfEncrypted(file);
       if (encrypted && action === "encrypt") {
-        alert("This file is already encrypted. Please choose 'Decrypt' instead.");
+        alert("This PDF is already encrypted. Please choose 'Decrypt' instead.");
         return;
       }
       if (!encrypted && action === "decrypt") {
-        alert("This file is not encrypted. Please choose 'Encrypt' instead.");
+        alert("This PDF is not encrypted. Please choose 'Encrypt' instead.");
         return;
       }
 
-      statusEl.textContent = "Processing...";
+      setBusy(true);
 
       const reader = new FileReader();
       reader.onload = async function() {
-        const fileData = reader.result.split(",")[1]; // base64
+        const base64 = reader.result.split(",")[1]; // keep as base64 for Lambda
         try {
           const response = await fetch(apiUrl, {
             method: "POST",
@@ -96,20 +135,17 @@
             body: JSON.stringify({
               action: action,
               filename: file.name,
-              filedata: fileData,
+              filedata: base64,
               password: password
             })
           });
 
-          if (!response.ok) {
-            throw new Error("Server error: " + response.status);
-          }
+          if (!response.ok) throw new Error("Server error: " + response.status);
 
-          // Parse JSON from Lambda
           const result = await response.json();
           const processedB64 = result.result;
 
-          // Convert base64 to binary
+          // base64 -> Blob
           const byteCharacters = atob(processedB64);
           const byteNumbers = new Array(byteCharacters.length);
           for (let i = 0; i < byteCharacters.length; i++) {
@@ -118,7 +154,7 @@
           const byteArray = new Uint8Array(byteNumbers);
           const blob = new Blob([byteArray], { type: "application/pdf" });
 
-          // Trigger download
+          // Download
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
@@ -132,6 +168,8 @@
         } catch (err) {
           console.error("Error:", err);
           statusEl.textContent = "Failed to process PDF. See console for details.";
+        } finally {
+          setBusy(false);
         }
       };
       reader.readAsDataURL(file);
