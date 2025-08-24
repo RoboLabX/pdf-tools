@@ -31,8 +31,26 @@
     <p id="status"></p>
   </div>
 
+  <!-- Add pdf-lib -->
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+
   <script>
     const apiUrl = "https://dbmh424rif.execute-api.us-west-2.amazonaws.com/dev/pdf-echo";
+
+    // Utility: Check if PDF is encrypted
+    async function isPdfEncrypted(file) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        await PDFLib.PDFDocument.load(arrayBuffer); 
+        return false; // opened successfully
+      } catch (err) {
+        console.warn("PDF check error:", err.message);
+        if (err.message.includes("Password") || err.message.includes("encrypted")) {
+          return true;
+        }
+        return false; // treat other errors as not-encrypted
+      }
+    }
 
     document.getElementById("processBtn").addEventListener("click", async () => {
       const fileInput = document.getElementById("fileInput");
@@ -52,6 +70,17 @@
       const passwordRegex = /^[\w!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]+$/;
       if (password.length < 4 || password.length > 50 || !passwordRegex.test(password)) {
         alert("Invalid password. Must be 4–50 characters, letters, numbers, or symbols.");
+        return;
+      }
+
+      // --- NEW CHECK: Prevent re-encrypting already encrypted file ---
+      const encrypted = await isPdfEncrypted(file);
+      if (encrypted && action === "encrypt") {
+        alert("This file is already encrypted. Please choose 'Decrypt' instead.");
+        return;
+      }
+      if (!encrypted && action === "decrypt") {
+        alert("This file is not encrypted. Please choose 'Encrypt' instead.");
         return;
       }
 
